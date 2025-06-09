@@ -1,0 +1,2 @@
+/home/user/droid-agencor/agencor/android/app/.cxx/RelWithDebInfo/303u3s5j/arm64-v8a/CMakeFiles/edit_cache.dir
+/home/user/droid-agencor/agencor/android/app/.cxx/RelWithDebInfo/303u3s5j/arm64-v8a/CMakeFiles/rebuild_cache.dir

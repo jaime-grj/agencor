@@ -1,0 +1,2 @@
+/home/user/Escritorio/tfg/src/mobile_app/android/app/.cxx/RelWithDebInfo/a1m1lm5q/x86_64/CMakeFiles/edit_cache.dir
+/home/user/Escritorio/tfg/src/mobile_app/android/app/.cxx/RelWithDebInfo/a1m1lm5q/x86_64/CMakeFiles/rebuild_cache.dir

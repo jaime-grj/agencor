@@ -1,0 +1,165 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Validator;
+
+use App\Models\Event;
+use App\Models\Category;
+
+use Carbon\Carbon;
+
+class AddEventController extends Controller
+{
+    public function newEventView(Request $req)
+    {
+        if (Auth::user()->type == 'Admin') {
+            $categories = Category::all();
+            $event_session = $req->session()->get('event');
+            return view('admin.newEvent', compact('categories', 'event_session'));
+        } else {
+            return redirect(route('home'))->with('error', __('messages.accessDenied'));
+        }
+    }
+
+    public function newEventSubmit(Request $req)
+    {
+        if (Auth::user()->type == 'Admin') {
+            $validated = Validator::make($req->all(), [
+                'title' => 'required',
+                'short_description' => 'nullable',
+                'long_description' => 'required',
+                'datetime_start' => 'date|nullable',
+                'datetime_end' => 'date|nullable',
+                'is_time_set' => 'nullable',
+                'capacity' => 'numeric|min:0|max:5000000|nullable',
+                'min_price' => 'numeric|min:0|max:5000000|nullable',
+                'max_price' => 'numeric|min:0|max:5000000|nullable',
+                'media_alt' => 'nullable',
+                'location' => 'nullable',
+                'show_location_map' => 'nullable',
+                'url' => 'nullable',
+                'category' => 'nullable',
+                'datetime_start_featured' => 'date|nullable',
+                'datetime_end_featured' => 'date|nullable',
+            ])->after(function ($validator) use (&$req) {
+                if ($req->min_price !== null && $req->max_price !== null && $req->min_price > $req->max_price) {
+                    $validator->errors()->add('max_price', __('messages.validationMaxPriceError'));
+                }
+
+                // Adjust datetime if time is not set
+                if ($req->is_time_set == false || $req->is_time_set === '0' || $req->is_time_set === 0 || $req->is_time_set === null) {
+                    if (!empty($req->datetime_start)) {
+                        $req->merge([
+                            'datetime_start' => Carbon::parse($req->datetime_start)->startOfDay()->format('Y-m-d H:i:s')
+                        ]);
+                    }
+                    if (!empty($req->datetime_end)) {
+                        $req->merge([
+                            'datetime_end' => Carbon::parse($req->datetime_end)->endOfDay()->format('Y-m-d H:i:s')
+                        ]);
+                    }
+                }
+
+                if (!empty($req->datetime_start) && !empty($req->datetime_end)) {
+                    $start = Carbon::parse($req->datetime_start);
+                    $end = Carbon::parse($req->datetime_end);
+                    if ($start->gt($end)) {
+                        $validator->errors()->add('datetime_end', __('messages.validationDateRangeError'));
+                    }
+                }
+            })->validate();
+            $file_validated  = $req->validate([
+                'file' => 'image|max:30000|nullable'
+            ]);
+            if ($req->file) {
+                $filename = time() . '_' . $req->file->getClientOriginalName();
+                $req->file->move(public_path('storage/tmp/'), $filename);
+                $validated['media_filename'] = $filename;
+            }
+            Session::put('event', $validated);
+            return redirect(route('new-event-confirm.view'));
+        } else {
+            return redirect(route('home'))->with('error', __('messages.accessDenied'));
+        }
+    }
+
+    public function newEventConfirmView(Request $req)
+    {
+        if (Auth::user()->type == 'Admin') {
+            $event_session = $req->session()->get('event');
+            $categories = Category::all();
+            if ($event_session) {
+                return view('admin.newEventConfirm', compact('event_session', 'categories'));
+            } else {
+                return redirect(route('home'));
+            }
+        } else {
+            return redirect(route('home'))->with('error', __('messages.accessDenied'));
+        }
+    }
+
+    public function newEventConfirmSubmit(Request $req)
+    {
+        if (Auth::user()->type !== 'Admin') {
+            return redirect(route('home'))->with('error', __('messages.accessDenied'));
+        }
+
+        $event_session = $req->session()->pull('event');
+        $event = new Event;
+
+        $fields = [
+            'title', 'short_description', 'long_description',
+            'datetime_start', 'datetime_end', 'capacity',
+            'datetime_start_featured', 'datetime_end_featured',
+            'min_price', 'max_price', 'media_alt',
+            'location', 'url', 'media_filename',
+        ];
+
+        foreach ($fields as $field) {
+            if (isset($event_session[$field])) {
+                $event->$field = $event_session[$field];
+            }
+        }
+
+        $event->is_time_set = isset($event_session['is_time_set']) && $event_session['is_time_set'] === '1' ? 1 : 0;
+        $event->show_location_map = isset($event_session['show_location_map']) && $event_session['show_location_map'] === '1' ? 1 : 0;
+
+        try {
+            $saved = $event->save();
+        } catch (\Illuminate\Database\QueryException $ex) {
+            return redirect(route('home'))->with('error', __('messages.errorSavingInDatabase') . ': ' . $ex->getMessage());
+        }
+
+        if (!$saved) {
+            return redirect(route('home'))->with('error', __('messages.errorSavingInDatabase'));
+        }
+
+        if (!empty($event->media_filename)) {
+            $tmpPath = public_path('storage/tmp/' . $event->media_filename);
+            $finalPath = public_path('storage/images/' . $event->media_filename);
+
+            if (File::exists($tmpPath)) {
+                File::move($tmpPath, $finalPath);
+            } else {
+                return redirect(route('home'))->with('error', __('messages.fileNotFound'));
+            }
+        }
+
+        if (isset($event_session['category'])) {
+            $event->categories()->sync($event_session['category']);
+        }
+
+        return redirect(route('event-detail.view', $event->id))->with('msg', __('messages.eventSaved'));
+    }
+
+    public function newEventCancel(Request $req)
+    {
+        $req->session()->forget('event');
+        return redirect(route('home'));
+    }
+}

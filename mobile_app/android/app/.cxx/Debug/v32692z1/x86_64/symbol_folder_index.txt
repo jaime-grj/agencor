@@ -1,0 +1,1 @@
+/home/user/Escritorio/tfg/src/mobile_app/build/app/intermediates/cxx/Debug/v32692z1/obj/x86_64
