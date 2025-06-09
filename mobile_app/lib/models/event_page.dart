@@ -9,7 +9,6 @@ EventPage eventPageFromJson(String str) => EventPage.fromJson(json.decode(str));
 String eventPageToJson(EventPage data) => json.encode(data.toJson());
 
 class EventPage {
-  final String baseUrl = 'http://192.168.1.15:8000/api/v1/events/';
   final int currentPage;
   final List<Event> data;
   final String firstPageUrl;
